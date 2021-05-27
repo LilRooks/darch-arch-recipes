@@ -1,0 +1,5 @@
+#!/bin/bash
+echo "[multilib]                            
+Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+pacman -Syu --noconfirm
+pacman -S --noconfirm base{,-devel} linux{,-firmware,-headers} lvm2

@@ -1,0 +1,50 @@
+#!/bin/bash
+set -e
+
+mkdir -p /etc/containerd
+echo 'root = "/var/lib/darch/containerd"' >> /etc/containerd/config.toml
+sed -i -e 's/#Color/Color\nILoveCandy/' /etc/pacman.conf
+pacman -Syu --noconfirm
+pacman -S --noconfirm \
+    networkmanager ntfs-3g \
+    {lib32-,}{vulkan-intel,vulkan-radeon} \
+    bash-completion zsh-completions cowsay fortune-mod \
+    sudo openssh refind keychain \
+    man-db man-pages texinfo nano vimpager \
+    tmux htop zsh gvim \
+    bash-completion zsh-completions cowsay \
+    sqlite3 `#For zsh-histdb` \
+    python-virtualenvwrapper \
+    git wget rsync tree \
+    links trash-cli udiskie virtualbox unzip \
+
+# Set the root password
+if [ -n  "$ROOT_PASSWD" ]; then
+    echo "Using root password provided by environment variable..."
+    echo -en "$ROOT_PASSWD\n$ROOT_PASSWD" | passwd
+else
+    echo "Using default root password..."
+    echo -en "root\nroot" | passwd
+fi
+
+# Add our users
+useradd -m -G users,wheel -s /bin/zsh zant
+chfn -f "Mal Zant" zant
+groupadd guests
+useradd -m -G users,guests -s /bin/bash guest
+chfn -f "Guest" guest
+
+# Enable sudo for wheel
+echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/wheel
+
+# Set the user password
+if [ -n  "$USER_PASSWD" ]; then
+    echo "Using user password provided by environment variable..."
+    echo -en "$USER_PASSWD\n$USER_PASSWD" | passwd zant
+else
+    echo "Using default user password..."
+    echo -en "zant\nzant" | passwd zant
+fi
+
+# Set the guest password
+echo -en "guest\nguest" | passwd guest

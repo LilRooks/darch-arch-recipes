@@ -1,0 +1,118 @@
+---
+- name: Playbook to terraform disk
+  hosts: localhost
+  vars:
+    device:  "{{ lookup('env','DEVICE') }}"
+    password:  "{{ lookup('env','PASSWD') }}"
+    host: "{{ lookup('env','HOSTNAME') }}"
+  become: yes
+  become_method: su
+  tasks:
+    - name: Check BIOS Partition
+      parted:
+        device: "{{ device }}"
+        label: gpt
+        number: 1
+        state: present
+        flags: [ boot ]
+        part_end: 8MiB
+
+    - name: Check LUKS Partition
+      parted:
+        device: "{{ device }}"
+        label: gpt
+        number: 2
+        state: present
+        part_start: 50GiB
+
+
+    - name: Open LUKS container
+      luks_device:
+        device: "{{ device }}2"
+        state: opened
+        name: lvmcrypt
+        passphrase: "{{ password }}"
+
+
+    - name: Check Volume Group
+      lvg:
+        vg: "{{ host }}"
+        pvs: /dev/mapper/lvmcrypt
+
+    - name: Check Logical Volumes
+      lvol: 
+        vg: "{{ host }}"
+        lv: "{{ item.name }}"
+        size: "{{ item.size}}"
+        shrink: false
+      loop:
+        - { size: "20G", name: "swap" }
+        - { size: "50G", name: "root" }
+        - { size: "50G", name: "home" }
+        - { size: "10G", name: "darch-etc" }
+        - { size: "10G", name: "darch-var-lib" }
+
+    - name: Check Logical FS
+      filesystem:
+        fstype: "{{ item.fs }}"
+        dev: "/dev/{{ host }}/{{ item.name }}"
+      loop:
+        - { fs: "swap", name: "swap" }
+        - { fs: "ext4", name: "root" }
+        - { fs: "ext4", name: "home" }
+        - { fs: "ext4", name: "darch-etc" }
+        - { fs: "ext4", name: "darch-var-lib" }
+
+    - name: Check Mountpoints
+      file:
+        state: directory
+        path: "{{ item.path }}"
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - { path: "/etc/darch" }
+        - { path: "/var/lib/darch" }
+
+    - name: Mount Logical Volumes
+      mount:
+        fstab: "/tmp/fstab.txt"
+        name: "{{ item.mount }}"
+        src: "/dev/{{ host }}/{{ item.vol }}"
+        fstype: ext4
+        state: "{{ item.state }}"
+      loop:
+        - { state: "mounted", mount: "/etc/darch", vol: "darch-etc" }
+        - { state: "mounted", mount: "/var/lib/darch", vol: "darch-var-lib" }
+        - { state: "present", mount: "/home", vol: "home" }
+
+
+    - name: Download darch
+      get_url:
+        url: https://github.com/godarch/darch/releases/download/v0.21.0/darch-amd64-with-runtime.tar.gz
+        dest: /etc/darch/darch.tar.gz
+
+    - name: Re-Extract darch
+      unarchive:
+        remote_src: yes
+        src: /etc/darch/darch.tar.gz
+        dest: /
+
+    - name: Copy fstab to /etc/darch/hooks
+      copy:
+        src: /tmp/fstab.txt
+        dest: /etc/darch/hooks/fstab.txt
+        remote_src: yes
+
+    - name: Create /etc/darch/hooks/fstab.config
+      copy:
+        dest: "/etc/darch/hooks/{{ item.hook }}.config"
+        content: "*={{ item.value }}"
+      loop:
+        - { hook: "fstab", value: "fstab.txt" }
+        - { hook: "hostname", value: "{{ host }}" }
+
+    - name: Move containerd Root
+      copy:
+        dest: "/etc/containerd/config.toml"
+        content: 'root = "/var/lib/darch/containerd"'

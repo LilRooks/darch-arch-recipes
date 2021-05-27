@@ -1,0 +1,16 @@
+#!/bin/bash
+set -e
+
+pacman -S --noconfirm \
+    alacritty \
+    blueman bluez-utils network-manager-applet xfce4-clipman-plugin \
+    bspwm sxhkd dunst conky rofi dex maim brightnessctl \
+    discord firefox gimp kdeconnect mpv obs-studio \
+    fcitx-{configtool,libpinyin} \
+    feh ristretto thunar \
+    lxappearance lxsession \
+    mesa-demos \
+    nerd-fonts-noto noto-fonts{,-cjk,-emoji-blob,-extra} \
+    pavucontrol pulseaudio{,-bluetooth} \
+    xclip xdotool \
+    xorg xorg-xinit \
